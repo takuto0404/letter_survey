@@ -1,11 +1,20 @@
-<script src="https://unpkg.com/jspsych@7.3.1/dist/jspsych.js"></script>
-<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
-
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>jsPsychテスト</title>
+  <script src="https://unpkg.com/jspsych@7.3.1/dist/jspsych.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css">
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
+</head>
+<body></body>
 <script>
 const jsPsych = initJsPsych();
+
 jsPsych.run([{
   type: jsPsychHtmlKeyboardResponse,
   stimulus: "<h1>テスト画面</h1>",
   choices: ["Enter"]
 }]);
 </script>
+</html>
