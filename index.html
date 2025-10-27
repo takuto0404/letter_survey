@@ -1,48 +1,83 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>実験デモ</title>
-  <!-- jsPsych 本体 -->
-  <script src="https://unpkg.com/jspsych@7.3.1/dist/jspsych.js" defer></script>
-  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css">
 
-  <!-- プラグイン読み込み -->
+  <!-- jsPsych 本体（defer を付ける） -->
+  <script src="https://unpkg.com/jspsych@7.3.1/dist/jspsych.js" defer></script>
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css" />
+
+  <!-- プラグインは browser 向けビルドを指定（※ここ超重要） -->
   <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2/dist/index.browser.min.js" defer></script>
-　<script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.2/dist/index.browser.min.js" defer></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.2/dist/index.browser.min.js" defer></script>
 </head>
-<body></body>
+<body>
+  <noscript>このページはJavaScriptを使用します。ブラウザでJavaScriptを有効にしてください。</noscript>
+</body>
 <script>
-// 実験の初期設定
-const jsPsych = initJsPsych({
-  on_finish: function() {
-    window.location.href = 'https://forms.gle/あなたのフォームURL';
+/* ① 最初に「ここまで来た？」を表示（動作確認用） */
+console.log('[debug] inline script started');
+
+/* ② エラーを画面にも出す（コンソールが分からなくても大丈夫用） */
+window.addEventListener('error', (e) => {
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
+  div.textContent = 'Error: ' + e.message;
+  document.body.appendChild(div);
+});
+
+/* ③ 依存スクリプト（defer）が読み終わったら実行 */
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    if (typeof initJsPsych !== 'function') {
+      throw new Error('initJsPsych が見つかりません。jsPsych の読み込みに失敗しています。');
+    }
+    if (typeof jsPsychHtmlKeyboardResponse === 'undefined') {
+      throw new Error('jsPsychHtmlKeyboardResponse が見つかりません。plugin-html-keyboard-response の読み込みURLを確認してください。');
+    }
+    if (typeof jsPsychSurveyText === 'undefined') {
+      throw new Error('jsPsychSurveyText が見つかりません。plugin-survey-text の読み込みURLを確認してください。');
+    }
+
+    const jsPsych = initJsPsych({
+      on_finish: function () {
+        // 動作確認中は遷移せずに完了表示
+        jsPsych.data.displayData(); // ←まずはこれで画面に結果を表示（真っ白回避）
+        // 本番に戻すときは上2行を消して下を有効化
+        // window.location.href = 'https://forms.gle/あなたのフォームURL';
+      }
+    });
+
+    let timeline = [];
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "<h2>Enterキーで開始</h2>",
+      choices: ["Enter"]
+    });
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "<p>ここにドキュメントを表示します（10秒後に次へ）</p>",
+      choices: "NO_KEYS",
+      trial_duration: 10000 // デバッグ中は短く
+    });
+
+    timeline.push({
+      type: jsPsychSurveyText,
+      questions: [{ prompt: "できるだけ多くの都道府県名を書いてください（30秒間）" }],
+      trial_duration: 30000 // デバッグ中は短く
+    });
+
+    jsPsych.run(timeline);
+  } catch (err) {
+    console.error(err);
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
+    div.textContent = 'Setup Error: ' + err.message;
+    document.body.appendChild(div);
   }
 });
-
-// タイムライン
-let timeline = [];
-
-timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: "<h2>Enterキーで開始</h2>",
-  choices: ["Enter"]
-});
-
-timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: "<p>ここにドキュメントを表示します（150秒後に次へ）</p>",
-  choices: "NO_KEYS",
-  trial_duration: 150000
-});
-
-timeline.push({
-  type: jsPsychSurveyText,
-  questions: [{prompt: "できるだけ多くの都道府県名を書いてください（10分間）"}],
-  trial_duration: 600000
-});
-
-// 実験開始
-jsPsych.run(timeline);
 </script>
 </html>
