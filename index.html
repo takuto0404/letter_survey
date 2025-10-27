@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>実験デモ</title>
+  <script src="https://unpkg.com/jspsych@7.3.1/dist/jspsych.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css">
+</head>
+<body></body>
+<script>
+// 実験の初期設定
+const jsPsych = initJsPsych({
+  on_finish: function() {
+    // 終了後にGoogleフォームへリダイレクト
+    window.location.href = 'https://forms.gle/あなたのフォームURL';
+  }
+});
+
+// タイムライン（順番）
+let timeline = [];
+
+// ① 説明
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: "<h2>これからドキュメントを2分半表示します。<br>Enterキーで開始。</h2>",
+  choices: ["Enter"]
+});
+
+// ② ドキュメント表示（150秒で自動終了）
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="width:80%;margin:auto;text-align:left;">
+      <h3>ドキュメント</h3>
+      <p>ここにあなたの文章を入れます。</p>
+      <p>150秒後に自動的に次に進みます。</p>
+    </div>
+  `,
+  choices: "NO_KEYS",
+  trial_duration: 150000 // 2分半
+});
+
+// ③ パズル（例：10分間の簡単課題）
+timeline.push({
+  type: jsPsychSurveyText,
+  questions: [
+    {prompt: "できるだけ多くの都道府県名を書いてください（10分間）"}
+  ],
+  trial_duration: 600000, // 10分
+  on_finish: function(){
+    jsPsych.data.get().localSave('csv','puzzle_data.csv'); // 結果を保存
+  }
+});
+
+// 実験開始
+jsPsych.run(timeline);
+</script>
+</html>
