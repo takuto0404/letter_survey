@@ -2,19 +2,47 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>jsPsychテスト</title>
+  <title>実験デモ</title>
+  <!-- jsPsych 本体 -->
   <script src="https://unpkg.com/jspsych@7.3.1/dist/jspsych.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css">
+
+  <!-- プラグイン読み込み -->
   <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.2"></script>
 </head>
 <body></body>
 <script>
-const jsPsych = initJsPsych();
+// 実験の初期設定
+const jsPsych = initJsPsych({
+  on_finish: function() {
+    window.location.href = 'https://forms.gle/あなたのフォームURL';
+  }
+});
 
-jsPsych.run([{
+// タイムライン
+let timeline = [];
+
+timeline.push({
   type: jsPsychHtmlKeyboardResponse,
-  stimulus: "<h1>テスト画面</h1>",
+  stimulus: "<h2>Enterキーで開始</h2>",
   choices: ["Enter"]
-}]);
+});
+
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: "<p>ここにドキュメントを表示します（150秒後に次へ）</p>",
+  choices: "NO_KEYS",
+  trial_duration: 150000
+});
+
+timeline.push({
+  type: jsPsychSurveyText,
+  questions: [{prompt: "できるだけ多くの都道府県名を書いてください（10分間）"}],
+  trial_duration: 600000
+});
+
+// 実験開始
+jsPsych.run(timeline);
 </script>
 </html>
