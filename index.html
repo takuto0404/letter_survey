@@ -1,108 +1,32 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>jsPsych 最小デモ（GH Pages）</title>
+<script type="module">
+  import { initJsPsych } from "https://cdn.jsdelivr.net/npm/jspsych@8.2.2/+esm";
+  import htmlKeyboardResponse from "https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@2.0.0/+esm";
+  import surveyText from "https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@2.0.0/+esm";
 
-  <!-- jsPsych 本体（UMDビルド） -->
-  <script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.1/dist/jspsych.js" defer></script>
-  <!-- フォールバック（jsDelivr がブロックされた場合など） -->
-  <script>
-    window.addEventListener('error', (e) => {
-      // どのスクリプトが落ちたか画面にも出す
-      if (e?.target?.tagName === 'SCRIPT') {
-        const div = document.createElement('div');
-        div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
-        div.textContent = 'Script load error: ' + e.target.src;
-        document.body.appendChild(div);
-      }
-    });
-    // jsDelivr がダメなら unpkg から読み直す
-    (function ensureJsPsych(){
-      const t = setTimeout(() => {
-        if (typeof initJsPsych !== 'function') {
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/jspsych@7.3.1/dist/jspsych.js';
-          s.defer = true;
-          document.head.appendChild(s);
-        }
-      }, 1500);
-    })();
-  </script>
+  const jsPsych = initJsPsych({
+    on_finish: () => jsPsych.data.displayData()
+  })
+  const timeline = []
 
-  <!-- CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.1/css/jspsych.css" />
+  timeline.push({
+    type: htmlKeyboardResponse,
+    stimulus: "<h2>Enterキーで開始</h2>",
+    choices: ["Enter"]
+  )};
 
-  <!-- プラグイン（browser 向けビルド） -->
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.2/dist/index.browser.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.1.2/dist/index.browser.min.js" defer></script>
-</head>
-<body>
-  <noscript>このページはJavaScriptを使用します。ブラウザでJavaScriptを有効にしてください。</noscript>
-</body>
-<script>
-/* デバッグ表示 */
-console.log('[debug] inline script started');
+  timeline.push({
+    type: htmlKeyboardResponse,
+    stimulus: "<p>ここにドキュメントを表示します（10秒後に次へ）</p>",
+    choices: "NO_KEYS",
+    trial_duratoin: 1000
+  });
 
-/* 画面にもエラー表示 */
-window.addEventListener('error', (e) => {
-  if (e.message) {
-    const div = document.createElement('div');
-    div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
-    div.textContent = 'Error: ' + e.message;
-    document.body.appendChild(div);
-  }
-});
+  timeline.push({
+    type: surveyText,
+    questions: [{ prompt: "ここにテストを表示します（30秒間）"}],
+    trial_duration: 30000
+  });
 
-/* 重要ポイント：全リソースの読み込み完了後（load）に開始
-   ※ 一部環境で DOMContentLoaded と defer の順序が噛み合わない事故を避ける */
-window.addEventListener('load', () => {
-  try {
-    if (typeof initJsPsych !== 'function') {
-      throw new Error('initJsPsych が見つかりません。jsPsych の読み込みに失敗しています。');
-    }
-    if (typeof jsPsychHtmlKeyboardResponse === 'undefined') {
-      throw new Error('jsPsychHtmlKeyboardResponse が見つかりません。plugin-html-keyboard-response の読み込みURLを確認してください。');
-    }
-    if (typeof jsPsychSurveyText === 'undefined') {
-      throw new Error('jsPsychSurveyText が見つかりません。plugin-survey-text の読み込みURLを確認してください。');
-    }
-
-    const jsPsych = initJsPsych({
-      on_finish: function () {
-        jsPsych.data.displayData(); // まずは画面に結果を出す
-      }
-    });
-
-    const timeline = [];
-
-    timeline.push({
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: "<h2>Enterキーで開始</h2>",
-      choices: ["Enter"]
-    });
-
-    timeline.push({
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: "<p>ここにドキュメントを表示します（10秒後に次へ）</p>",
-      choices: "NO_KEYS",
-      trial_duration: 10000
-    });
-
-    timeline.push({
-      type: jsPsychSurveyText,
-      questions: [{ prompt: "できるだけ多くの都道府県名を書いてください（30秒間）" }],
-      trial_duration: 30000
-    });
-
-    jsPsych.run(timeline);
-  } catch (err) {
-    console.error(err);
-    const div = document.createElement('div');
-    div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
-    div.textContent = 'Setup Error: ' + err.message;
-    document.body.appendChild(div);
-  }
-});
+  jsPsych.run(timeline);
 </script>
-</html>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@8.2.2/css/jspsych.css" />
