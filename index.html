@@ -1,32 +1,98 @@
-<script type="module">
-  import { initJsPsych } from "https://cdn.jsdelivr.net/npm/jspsych@8.2.2/+esm";
-  import htmlKeyboardResponse from "https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@2.0.0/+esm";
-  import surveyText from "https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@2.0.0/+esm";
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>jsPsych v7 デモ（エラーハンドリング付）</title>
 
-  const jsPsych = initJsPsych({
-    on_finish: () => jsPsych.data.displayData()
-  })
-  const timeline = []
+<!-- ✅ v7 はこれでOK（グローバルに initJsPsych が出る） -->
+<script src="https://unpkg.com/jspsych@7.3.1" defer></script>
+<link href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css" rel="stylesheet" />
 
-  timeline.push({
-    type: htmlKeyboardResponse,
-    stimulus: "<h2>Enterキーで開始</h2>",
-    choices: ["Enter"]
-  )};
+<!-- プラグイン（グローバル変数が生える） -->
+<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2" defer></script>
+<script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.2" defer></script>
 
-  timeline.push({
-    type: htmlKeyboardResponse,
-    stimulus: "<p>ここにドキュメントを表示します（10秒後に次へ）</p>",
-    choices: "NO_KEYS",
-    trial_duratoin: 1000
-  });
+<style>
+  #boot-status { position: fixed; left: 0; right: 0; top: 0;
+    background: #eef; border-bottom: 1px solid #99f; padding: 6px 10px;
+    font: 12px/1.5 monospace; z-index: 99998; }
+  .errbar { position: fixed; left: 0; right: 0; bottom: 0;
+    background: #fee; border-top: 1px solid #f99; padding: 8px 10px;
+    font: 12px/1.5 monospace; z-index: 99999; white-space: pre-wrap; }
+</style>
 
-  timeline.push({
-    type: surveyText,
-    questions: [{ prompt: "ここにテストを表示します（30秒間）"}],
-    trial_duration: 30000
-  });
-
-  jsPsych.run(timeline);
+<script>
+/* ====== 共通：可視デバッグUI ====== */
+(function setupDebugBars(){
+  const top = document.createElement('div');
+  top.id = 'boot-status';
+  top.textContent = '[boot] Loading...';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(top));
+})();
+function showErr(msg) {
+  const div = document.createElement('div');
+  div.className = 'errbar';
+  div.textContent = 'Error: ' + msg;
+  document.body.appendChild(div);
+  console.error('[overlay]', msg);
+}
+/* リソース（<script> / <link>）の読込失敗 */
+window.addEventListener('error', e => {
+  if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+    showErr('Resource load failed: ' + (e.target.src || e.target.href));
+  } else if (e.message) {
+    showErr(e.message);
+  }
+}, true);
+/* 未処理のPromise拒否 */
+window.addEventListener('unhandledrejection', e => {
+  showErr('Unhandled rejection: ' + (e.reason && e.reason.message || e.reason));
+});
+/* タイムアウト監視：5秒で初期化未完なら警告表示 */
+let bootWatch = setTimeout(() => {
+  showErr('Boot timeout: jsPsych またはプラグインの読み込みが完了しません。ネットワークやURLを確認してください。');
+}, 5000);
 </script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@8.2.2/css/jspsych.css" />
+</head>
+<body>
+<noscript>このページはJavaScriptを使用します。ブラウザでJavaScriptを有効にしてください。</noscript>
+
+<script>
+/* ====== すべての defer スクリプトが実行された後に起動 ====== */
+window.addEventListener('load', () => {
+  try {
+    document.getElementById('boot-status').textContent = '[boot] Loaded. Checking globals...';
+
+    if (typeof initJsPsych !== 'function') {
+      throw new Error('initJsPsych が見つかりません（jsPsych本体未読込）');
+    }
+    if (typeof jsPsychHtmlKeyboardResponse === 'undefined') {
+      throw new Error('jsPsychHtmlKeyboardResponse が見つかりません（plugin-html-keyboard-response未読込）');
+    }
+    if (typeof jsPsychSurveyText === 'undefined') {
+      throw new Error('jsPsychSurveyText が見つかりません（plugin-survey-text未読込）');
+    }
+
+    clearTimeout(bootWatch);
+    document.getElementById('boot-status').textContent = '[boot] All good. Starting experiment...';
+
+    const jsPsych = initJsPsych({
+      on_finish: () => jsPsych.data.displayData()
+    });
+
+    const timeline = [
+      { type: jsPsychHtmlKeyboardResponse, stimulus: '<h2>Enterキーで開始</h2>', choices: ['Enter'] },
+      { type: jsPsychHtmlKeyboardResponse, stimulus: '<p>10秒表示して次へ</p>', choices: 'NO_KEYS', trial_duration: 10000 },
+      { type: jsPsychSurveyText, questions: [{ prompt: 'できるだけ多くの都道府県名を書いてください（30秒）' }], trial_duration: 30000 }
+    ];
+
+    jsPsych.run(timeline);
+  } catch (err) {
+    clearTimeout(bootWatch);
+    showErr('Setup Error: ' + err.message);
+    console.error(err);
+  }
+});
+</script>
+</body>
+</html>
