@@ -2,32 +2,61 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>実験デモ</title>
+  <title>jsPsych 最小デモ（GH Pages）</title>
 
-  <!-- jsPsych 本体（defer を付ける） -->
+  <!-- jsPsych 本体（UMDビルド） -->
   <script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.1/dist/jspsych.js" defer></script>
-　<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.1/css/jspsych.css" />
-  <!-- プラグインは browser 向けビルドを指定（※ここ超重要） -->
+  <!-- フォールバック（jsDelivr がブロックされた場合など） -->
+  <script>
+    window.addEventListener('error', (e) => {
+      // どのスクリプトが落ちたか画面にも出す
+      if (e?.target?.tagName === 'SCRIPT') {
+        const div = document.createElement('div');
+        div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
+        div.textContent = 'Script load error: ' + e.target.src;
+        document.body.appendChild(div);
+      }
+    });
+    // jsDelivr がダメなら unpkg から読み直す
+    (function ensureJsPsych(){
+      const t = setTimeout(() => {
+        if (typeof initJsPsych !== 'function') {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/jspsych@7.3.1/dist/jspsych.js';
+          s.defer = true;
+          document.head.appendChild(s);
+        }
+      }, 1500);
+    })();
+  </script>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.1/css/jspsych.css" />
+
+  <!-- プラグイン（browser 向けビルド） -->
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.2/dist/index.browser.min.js" defer></script>
-　<script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.1.2/dist/index.browser.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.1.2/dist/index.browser.min.js" defer></script>
 </head>
 <body>
   <noscript>このページはJavaScriptを使用します。ブラウザでJavaScriptを有効にしてください。</noscript>
 </body>
 <script>
-/* ① 最初に「ここまで来た？」を表示（動作確認用） */
+/* デバッグ表示 */
 console.log('[debug] inline script started');
 
-/* ② エラーを画面にも出す（コンソールが分からなくても大丈夫用） */
+/* 画面にもエラー表示 */
 window.addEventListener('error', (e) => {
-  const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
-  div.textContent = 'Error: ' + e.message;
-  document.body.appendChild(div);
+  if (e.message) {
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#fee;border-top:1px solid #f99;padding:8px;font:12px/1.4 monospace;z-index:99999;';
+    div.textContent = 'Error: ' + e.message;
+    document.body.appendChild(div);
+  }
 });
 
-/* ③ 依存スクリプト（defer）が読み終わったら実行 */
-window.addEventListener('DOMContentLoaded', () => {
+/* 重要ポイント：全リソースの読み込み完了後（load）に開始
+   ※ 一部環境で DOMContentLoaded と defer の順序が噛み合わない事故を避ける */
+window.addEventListener('load', () => {
   try {
     if (typeof initJsPsych !== 'function') {
       throw new Error('initJsPsych が見つかりません。jsPsych の読み込みに失敗しています。');
@@ -41,14 +70,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const jsPsych = initJsPsych({
       on_finish: function () {
-        // 動作確認中は遷移せずに完了表示
-        jsPsych.data.displayData(); // ←まずはこれで画面に結果を表示（真っ白回避）
-        // 本番に戻すときは上2行を消して下を有効化
-        // window.location.href = 'https://forms.gle/あなたのフォームURL';
+        jsPsych.data.displayData(); // まずは画面に結果を出す
       }
     });
 
-    let timeline = [];
+    const timeline = [];
 
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
@@ -60,13 +86,13 @@ window.addEventListener('DOMContentLoaded', () => {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: "<p>ここにドキュメントを表示します（10秒後に次へ）</p>",
       choices: "NO_KEYS",
-      trial_duration: 10000 // デバッグ中は短く
+      trial_duration: 10000
     });
 
     timeline.push({
       type: jsPsychSurveyText,
       questions: [{ prompt: "できるだけ多くの都道府県名を書いてください（30秒間）" }],
-      trial_duration: 30000 // デバッグ中は短く
+      trial_duration: 30000
     });
 
     jsPsych.run(timeline);
