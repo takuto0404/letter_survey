@@ -33,12 +33,10 @@ window.addEventListener('unhandledrejection',e=>{showErr('Unhandled rejection: '
 let bootWatch=setTimeout(()=>{showErr('Boot timeout: jsPsych またはプラグインの読み込みが完了しません。ネットワークやURLを確認してください。');},5000);
 
 const GDOC_IFRAMES=[
-  "https://docs.google.com/document/d/e/XXXXXXXXXXXXXXXXXXXXXXXXXXXX/pub?embedded=true",
-  "https://docs.google.com/document/d/e/YYYYYYYYYYYYYYYYYYYYYYYYYYYY/pub?embedded=true",
-  "https://docs.google.com/document/d/e/AAAAAAAAAAAAAAAAAAAAAAAAAAAA/pub?embedded=true",
-  "https://docs.google.com/document/d/e/BBBBBBBBBBBBBBBBBBBBBBBBBBBB/pub?embedded=true",
-  "https://docs.google.com/document/d/e/CCCCCCCCCCCCCCCCCCCCCCCCCCCC/pub?embedded=true",
-  "https://docs.google.com/document/d/e/DDDDDDDDDDDDDDDDDDDDDDDDDDDD/pub?embedded=true"
+  "https://docs.google.com/document/d/16PcG459Gez69Wuk9n7HKFDRUnDSMIq0wM9JdU_vveVM/edit?usp=sharing",
+  "https://docs.google.com/document/d/1-d_yNvnLFwAW1aBIzggB7rFq1ETDtucUt74Gumawu3A/edit?usp=sharing",
+  "https://docs.google.com/document/d/1YuVn0ES_T0E-YIg3IDq7Uvzx90vBf_H0m4-DLFNWfzs/edit?usp=sharing",
+  "https://docs.google.com/document/d/1mbgmeo2_-Tsk6GsHZa4NmT7Tz7-TNkE45GHpIw8x4ww/edit?usp=sharing"
 ];
 
 function gdocSrc(raw){try{const u=new URL(raw);if(!u.searchParams.get('embedded'))u.searchParams.set('embedded','true');return u.toString()}catch{return raw}}
