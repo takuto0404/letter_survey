@@ -1,97 +1,267 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>jsPsych v7 デモ（エラーハンドリング付）</title>
+<title>文字の特徴に関する調査</title>
 
 <script src="https://unpkg.com/jspsych@7.3.1" defer></script>
 <link href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css" rel="stylesheet" />
 
-<!-- プラグイン（グローバル変数が生える） -->
 <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2" defer></script>
 <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.2" defer></script>
+<script src="https://unpkg.com/@jspsych/plugin-survey-multi-choice@1.1.2" defer></script>
+<script src="https://unpkg.com/@jspsych/plugin-survey-likert@1.1.2" defer></script>
 
 <style>
-  #boot-status { position: fixed; left: 0; right: 0; top: 0;
-    background: #eef; border-bottom: 1px solid #99f; padding: 6px 10px;
-    font: 12px/1.5 monospace; z-index: 99998; }
-  .errbar { position: fixed; left: 0; right: 0; bottom: 0;
-    background: #fee; border-top: 1px solid #f99; padding: 8px 10px;
-    font: 12px/1.5 monospace; z-index: 99999; white-space: pre-wrap; }
+  :root { --card-bg:#fff; --card-bd:#e5e7eb; --timer-bg:#111827; --timer-fg:#f9fafb; }
+  body { background:#f8fafc; font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; }
+  .card { max-width: 880px; margin: 48px auto; background:var(--card-bg); border:1px solid var(--card-bd); border-radius:16px; padding:28px 32px; box-shadow:0 6px 20px rgba(0,0,0,.04); }
+  .center { text-align:center; }
+  .muted { color:#6b7280; }
+  .btn { display:inline-block; padding:10px 16px; border-radius:10px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
+  .timer { position: fixed; right: 16px; top: 16px; background: var(--timer-bg); color: var(--timer-fg); padding: 8px 12px; border-radius: 12px; font-variant-numeric: tabular-nums; box-shadow: 0 4px 12px rgba(0,0,0,.2); z-index: 9999; }
+  #boot-status { position: fixed; left: 0; right: 0; top: 0; background: #eef; border-bottom: 1px solid #99f; padding: 6px 10px; font: 12px/1.5 monospace; z-index: 99998; }
+  .errbar { position: fixed; left: 0; right: 0; bottom: 0; background: #fee; border-top: 1px solid #f99; padding: 8px 10px; font: 12px/1.5 monospace; z-index: 99999; white-space: pre-wrap; }
 </style>
 
 <script>
-/* ====== 共通：可視デバッグUI ====== */
-(function setupDebugBars(){
-  const top = document.createElement('div');
-  top.id = 'boot-status';
-  top.textContent = '[boot] Loading...';
-  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(top));
-})();
-function showErr(msg) {
-  const div = document.createElement('div');
-  div.className = 'errbar';
-  div.textContent = 'Error: ' + msg;
-  document.body.appendChild(div);
-  console.error('[overlay]', msg);
-}
-/* リソース（<script> / <link>）の読込失敗 */
-window.addEventListener('error', e => {
-  if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
-    showErr('Resource load failed: ' + (e.target.src || e.target.href));
-  } else if (e.message) {
-    showErr(e.message);
-  }
-}, true);
-/* 未処理のPromise拒否 */
-window.addEventListener('unhandledrejection', e => {
-  showErr('Unhandled rejection: ' + (e.reason && e.reason.message || e.reason));
-});
-/* タイムアウト監視：5秒で初期化未完なら警告表示 */
-let bootWatch = setTimeout(() => {
-  showErr('Boot timeout: jsPsych またはプラグインの読み込みが完了しません。ネットワークやURLを確認してください。');
-}, 5000);
+(function(){const t=document.createElement('div');t.id='boot-status';t.textContent='[boot] Loading...';document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(t));})();
+function showErr(msg){const d=document.createElement('div');d.className='errbar';d.textContent='Error: '+msg;document.body.appendChild(d);console.error('[overlay]',msg);}
+window.addEventListener('error',e=>{if(e.target&&(e.target.tagName==='SCRIPT'||e.target.tagName==='LINK')){showErr('Resource load failed: '+(e.target.src||e.target.href));}else if(e.message){showErr(e.message);}},true);
+window.addEventListener('unhandledrejection',e=>{showErr('Unhandled rejection: '+(e.reason&&e.reason.message||e.reason));});
+let bootWatch=setTimeout(()=>{showErr('Boot timeout: jsPsych またはプラグインの読み込みが完了しません。ネットワークやURLを確認してください。');},5000);
+
+const GDOC_IFRAMES=[
+  "https://docs.google.com/document/d/e/XXXXXXXXXXXXXXXXXXXXXXXXXXXX/pub?embedded=true",
+  "https://docs.google.com/document/d/e/YYYYYYYYYYYYYYYYYYYYYYYYYYYY/pub?embedded=true",
+  "https://docs.google.com/document/d/e/AAAAAAAAAAAAAAAAAAAAAAAAAAAA/pub?embedded=true",
+  "https://docs.google.com/document/d/e/BBBBBBBBBBBBBBBBBBBBBBBBBBBB/pub?embedded=true",
+  "https://docs.google.com/document/d/e/CCCCCCCCCCCCCCCCCCCCCCCCCCCC/pub?embedded=true",
+  "https://docs.google.com/document/d/e/DDDDDDDDDDDDDDDDDDDDDDDDDDDD/pub?embedded=true"
+];
+
+function gdocSrc(raw){try{const u=new URL(raw);if(!u.searchParams.get('embedded'))u.searchParams.set('embedded','true');return u.toString()}catch{return raw}}
+function startTimer(msTotal){const el=document.createElement('div');el.className='timer';document.body.appendChild(el);const t0=performance.now();const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000));const m=Math.floor(s/60);const r=s%60;return `${String(m).padStart(1,'0')}:${String(r).padStart(2,'0')}`};el.textContent='残り '+fmt(msTotal);const h=setInterval(()=>{const dt=performance.now()-t0;const remain=msTotal-dt;el.textContent='残り '+fmt(remain);if(remain<=0){clearInterval(h);el.textContent='残り 00:00';setTimeout(()=>el.remove(),800)}},250);return()=>{clearInterval(h);el.remove()}}
+
 </script>
 </head>
 <body>
 <noscript>このページはJavaScriptを使用します。ブラウザでJavaScriptを有効にしてください。</noscript>
 
 <script>
-/* ====== すべての defer スクリプトが実行された後に起動 ====== */
-window.addEventListener('load', () => {
-  try {
-    document.getElementById('boot-status').textContent = '[boot] Loaded. Checking globals...';
+window.addEventListener('load',()=>{try{
+  document.getElementById('boot-status').textContent='[boot] Loaded. Checking globals...';
+  if(typeof initJsPsych!=='function')throw new Error('initJsPsych が見つかりません（jsPsych本体未読込）');
+  if(typeof jsPsychHtmlKeyboardResponse==='undefined')throw new Error('jsPsychHtmlKeyboardResponse が見つかりません（plugin-html-keyboard-response未読込）');
+  if(typeof jsPsychSurveyText==='undefined')throw new Error('jsPsychSurveyText が見つかりません（plugin-survey-text未読込）');
 
-    if (typeof initJsPsych !== 'function') {
-      throw new Error('initJsPsych が見つかりません（jsPsych本体未読込）');
-    }
-    if (typeof jsPsychHtmlKeyboardResponse === 'undefined') {
-      throw new Error('jsPsychHtmlKeyboardResponse が見つかりません（plugin-html-keyboard-response未読込）');
-    }
-    if (typeof jsPsychSurveyText === 'undefined') {
-      throw new Error('jsPsychSurveyText が見つかりません（plugin-survey-text未読込）');
-    }
+  clearTimeout(bootWatch);
+  document.getElementById('boot-status').textContent='[boot] All good. Starting experiment...';
 
-    clearTimeout(bootWatch);
-    document.getElementById('boot-status').textContent = '[boot] All good. Starting experiment...';
+  const jsPsych=initJsPsych({
+    on_finish:()=>{jsPsych.data.get().localSave('csv','result.csv');jsPsych.data.get().localSave('json','result.json');jsPsych.data.displayData();}
+  });
 
-    const jsPsych = initJsPsych({
-      on_finish: () => jsPsych.data.displayData()
-    });
+  const page1={
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div class="card">
+        <h1>文字の特徴に関する調査へようこそ</h1>
+        <p>
+        この実験は、文字の見た目や表記の違いが記憶に及ぼす影響を検討することを目的としています。<br>
+        内容は<strong>任意参加</strong>であり、途中で中止しても不利益は一切ありません。また、調査の結果と個人情報は結びつけられず、それによって不利益が生まれることもありません。<br>
+        ただし、<strong>途中でページを閉じる、リロードをする、他のタブに移るなどした場合、それまでの結果は保存されない</strong>ため、注意してください。<br>
+        調査画面の写真や調査の内容を、調査を実施していない他人と共有することはしないでください。<br>
+        可能な限り最後までご協力いただけると大変助かります。
+        </p>
+        <p>
+        調査はおよそ <strong>12分程度</strong> で終了します。<br>
+        内容を確認のうえ、準備ができたら「Enter」キーまたは「開始」ボタンを押してください。
+        </p>
 
-    const timeline = [
-      { type: jsPsychHtmlKeyboardResponse, stimulus: '<h2>Enterキーで開始</h2>', choices: ['Enter'] },
-      { type: jsPsychHtmlKeyboardResponse, stimulus: '<p>10秒表示して次へ</p>', choices: 'NO_KEYS', trial_duration: 10000 },
-      { type: jsPsychSurveyText, questions: [{ prompt: 'できるだけ多くの都道府県名を書いてください（30秒）' }], trial_duration: 30000 }
-    ];
+        <p class="muted">Enter キーで開始</p>
+        <div class="center" style="margin-top:24px;">
+          <button class="btn" id="start-btn">開始</button>
+        </div>
+      </div>`,
+    choices:['Enter'],
+    on_load:()=>{document.getElementById('start-btn')?.addEventListener('click',()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));});},
+    data:{page:1}
+  };
 
-    jsPsych.run(timeline);
-  } catch (err) {
-    clearTimeout(bootWatch);
-    showErr('Setup Error: ' + err.message);
-    console.error(err);
+  const READ_MS=120000;
+  const idx=jsPsych.randomization.sampleWithoutReplacement([...GDOC_IFRAMES.keys()],1)[0];
+  let cleanupTimer=null;
+
+  const page2={
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: () => `
+      <div class="card">
+        <h2>文章を読み、内容を頭に入れてください。（2分）</h2>
+        <p class="muted">時間になると自動で次へ進みます。</p>
+        <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;" />
+        <div style="height:60vh;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+          <iframe src="${gdocSrc(GDOC_IFRAMES[idx])}" style="width:100%;height:100%;border:0;" referrerpolicy="no-referrer-when-downgrade" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+        </div>
+        <div class="muted" style="margin-top:8px;">本文ID: #${idx+1}</div>
+      </div>
+    `,
+    choices:'NO_KEYS',
+    trial_duration: READ_MS,
+    on_load:()=>{cleanupTimer=startTimer(READ_MS);},
+    on_finish:()=>{cleanupTimer&&cleanupTimer();},
+    data:{page:2,text_index:idx}
+  };
+
+  // === 8分間の2048パズル ===
+const FORGET_MS = 8*60*1000;
+
+function make2048Block() {
+  let board = Array.from({length:4},()=>Array(4).fill(0));
+  let score = 0, moves = 0, maxTile = 0, cleanup=null, ended=false;
+
+  function randEmpty() {
+    const e=[];
+    for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(board[r][c]===0)e.push([r,c]);
+    return e.length?e[Math.floor(Math.random()*e.length)]:null;
   }
-});
+  function spawn(n=1){
+    for(let k=0;k<n;k++){
+      const cell = randEmpty(); if(!cell) return;
+      const [r,c]=cell; board[r][c] = Math.random()<0.9?2:4;
+    }
+  }
+  function rotate(b){const n=4,nb=Array.from({length:n},()=>Array(n).fill(0));for(let r=0;r<n;r++)for(let c=0;c<n;c++)nb[c][n-1-r]=b[r][c];return nb;}
+  function slideRow(row){const a=row.filter(x=>x!==0);let out=[],s=0;for(let i=0;i<a.length;i++){if(i<a.length-1&&a[i]===a[i+1]){const v=a[i]*2;out.push(v);s+=v;i++;}else out.push(a[i]);}while(out.length<4)out.push(0);return{row:out,gain:s};}
+  function move(dir){let b=board.map(r=>r.slice()),total=0;if(dir==='R'){b=b.map(r=>r.reverse());}if(dir==='U'){b=rotate(b);}if(dir==='D'){b=rotate(rotate(rotate(b)));}let moved=false,nb=[];for(let r=0;r<4;r++){const{row,gain}=slideRow(b[r]);if(gain>0)total+=gain;if(row.some((v,i)=>v!==b[r][i]))moved=true;nb.push(row);}if(dir==='R'){nb=nb.map(r=>r.reverse());}if(dir==='U'){nb=rotate(rotate(rotate(nb)));}if(dir==='D'){nb=rotate(nb);}return{nb,gain:total,moved};}
+  function anyMoves(b){for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(b[r][c]===0)return true;const dirs=[[1,0],[0,1]];for(let r=0;r<4;r++)for(let c=0;c<4;c++){for(const[dr,dc]of dirs){const r2=r+dr,c2=c+dc;if(r2<4&&c2<4&&b[r][c]===b[r2][c2])return true;}}return false;}
+  function render(){const wrap=document.getElementById('g2048');let html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#e5e7eb;padding:10px;border-radius:12px;">';for(let r=0;r<4;r++){for(let c=0;c<4;c++){const v=board[r][c];const bg=v?`hsl(${40+Math.log2(v)*18},85%,70%)`:'#f3f4f6';const fw=v>=1024?'900':(v>=128?'700':'600');html+=`<div style="height:70px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:${bg};font:600 22px/1 'Noto Sans JP',system-ui;color:#111;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);font-weight:${fw}">${v||''}</div>`;}}html+='</div>';document.getElementById('g2048-board').innerHTML=html;document.getElementById('g2048-score').textContent=score;document.getElementById('g2048-moves').textContent=moves;}
+  function finish(){if(ended)return;ended=true;cleanup&&cleanup();document.removeEventListener('keydown',handler,true);let mx=0;for(let r=0;r<4;r++)for(let c=0;c<4;c++)mx=Math.max(mx,board[r][c]);maxTile=mx;jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,maxTile,duration_ms:FORGET_MS});}
+  function handler(e){const k=e.key;if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','a','d','w','s','h','l','k','j'].includes(k))return;e.preventDefault();const dir=(k==='ArrowLeft'||k==='a'||k==='h')?'L':(k==='ArrowRight'||k==='d'||k==='l')?'R':(k==='ArrowUp'||k==='w'||k==='k')?'U':'D';const{nb,gain,moved}=move(dir);if(!moved)return;board=nb;score+=gain;moves++;let mx=0;for(let r=0;r<4;r++)for(let c=0;c<4;c++)mx=Math.max(mx,board[r][c]);maxTile=Math.max(maxTile,mx);spawn(1);render();if(!anyMoves(board))finish();}
+  return{
+    type:jsPsychHtmlKeyboardResponse,
+    stimulus:`
+      <div class="card">
+        <h2 style="margin:0 0 6px 0;">2048（8分）</h2>
+        <div class="muted" style="margin-bottom:8px;">矢印キー（または WASD / HJKL）で操作。時間内にスコアを伸ばして友達と競ってみてください。。</div>
+        <div id="g2048">
+          <div style="display:flex;gap:16px;align-items:baseline;margin-bottom:12px;">
+            <div class="muted">スコア: <span id="g2048-score">0</span></div>
+            <div class="muted">手数: <span id="g2048-moves">0</span></div>
+            <div class="muted">8分経過で自動で次へ進みます。</div>
+          </div>
+          <div id="g2048-board"></div>
+        </div>
+      </div>`,
+    choices:"NO_KEYS",
+    on_load:()=>{spawn(2);render();document.addEventListener('keydown',handler,true);cleanup=startTimer(FORGET_MS);setTimeout(finish,FORGET_MS);},
+    on_finish:()=>{cleanup&&cleanup();document.removeEventListener('keydown',handler,true);}
+  };
+}
+const forgetting_block = make2048Block();
+
+const QUESTION_BANK = {
+  0: {
+    multi: [
+      { prompt: '本文の主題に最も近いものは？', options: ['歴史','技術','文化','自然'] },
+      { prompt: '本文の語り口は？', options: ['説明的','叙情的','論説的','物語的'] }
+    ],
+    likert: [
+      { prompt: '本文は理解しやすかった' },
+      { prompt: '本文は印象に残った' },
+      { prompt: '本文は興味深かった' }
+    ],
+    text: [
+      { prompt: '本文の内容を一文で要約してください。' },
+      { prompt: '特に記憶に残った箇所を挙げてください。' }
+    ]
+  },
+  1: {
+    multi: [
+      { prompt: '本文に最も多く登場した対象は？', options: ['人物','場所','出来事','概念'] },
+      { prompt: '本文の時代設定は？', options: ['古代','近世','近代','現代'] }
+    ],
+    likert: [
+      { prompt: '本文は情報量が多かった' },
+      { prompt: '本文は構成が分かりやすかった' },
+      { prompt: '本文を思い出しやすい' }
+    ],
+    text: [
+      { prompt: '本文の構成（導入・展開など）で良かった点は？' },
+      { prompt: '紛らわしかった点があれば教えてください。' }
+    ]
+  },
+  2: { multi: [], likert: [], text: [] },
+  3: { multi: [], likert: [], text: [] },
+  4: { multi: [], likert: [], text: [] },
+  5: { multi: [], likert: [], text: [] }
+};
+
+function buildSurveyFor(textId) {
+  const spec = QUESTION_BANK[textId] || QUESTION_BANK[0];
+  const out = [];
+
+  if (spec.multi?.length) {
+    spec.multi.forEach((q, i) => {
+      out.push({
+        type: jsPsychSurveyMultiChoice,
+        preamble: `<div class="card"><h2>質問 ${i+1}</h2></div>`,
+        questions: [{ prompt: q.prompt, name: `mc_q${i+1}`, options: q.options, required: true }],
+        button_label: '次へ',
+        data: { page: 3, kind: 'multi', text_id: textId, index: i+1 }
+      });
+    });
+  }
+
+  if (spec.likert?.length) {
+    spec.likert.forEach((q, i) => {
+      out.push({
+        type: jsPsychSurveyLikert,
+        preamble: `<div class="card"><h2>質問 ${i+1+spec.multi.length}</h2></div>`,
+        questions: [{ prompt: q.prompt, labels: likert_labels, name: `likert_q${i+1}`, required: true }],
+        button_label: '次へ',
+        data: { page: 3, kind: 'likert', text_id: textId, index: i+1 }
+      });
+    });
+  }
+
+  if (spec.text?.length) {
+    spec.text.forEach((q, i) => {
+      out.push({
+        type: jsPsychSurveyText,
+        preamble: `<div class="card"><h2>質問 ${i+1+spec.multi.length+spec.likert.length}</h2></div>`,
+        questions: [{ prompt: q.prompt, name: `text_q${i+1}`, required: false }],
+        button_label: '次へ',
+        data: { page: 3, kind: 'text', text_id: textId, index: i+1 }
+      });
+    });
+  }
+
+  return out;
+}
+
+const blocks = buildSurveyFor(idx);
+
+  const page3_intro={
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div class="card">
+        <h2>テスト（全15問）</h2>
+        <p class="muted">選択式・5件法・自由記述が含まれます。全問に回答してください。</p>
+        <div class="center" style="margin-top:24px;">
+          <button class="btn" id="go-q">開始する</button>
+        </div>
+      </div>
+    `,
+    choices:['Enter'],
+    on_load:()=>{document.getElementById('go-q')?.addEventListener('click',()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));});},
+    data:{page:3,part:'intro'}
+  };
+
+  jsPsych.run([page1,page2,page3_intro,...blocks]);
+}catch(err){clearTimeout(bootWatch);showErr('Setup Error: '+err.message);console.error(err);}});
 </script>
 </body>
 </html>
+```
