@@ -1,385 +1,45 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>文字の特徴に関する調査</title>
+<script>
+window.addEventListener('load', () => {
+  try {
+    let global_meta = { text_label: null, g2048_score: null, g2048_moves: null };
 
-  <!-- jsPsych 本体とCSS（CDN） -->
-  <script src="https://unpkg.com/jspsych@7.3.1" defer></script>
-  <link href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css" rel="stylesheet" />
+    const jsPsych = initJsPsych({
+      on_finish: async () => {
+        try {
+          // 自由記述テスト（page:4）だけ抽出
+          const lastTestData = jsPsych.data.get().filter({page: 4}).values();
+          const testResults = lastTestData.map(trial => {
+            const responses = JSON.parse(trial.responses);
+            const question_id = Object.keys(responses)[0];
+            const value = responses[question_id];
+            return { question_id, value };
+          });
 
-  <!-- プラグイン -->
-  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2" defer></script>
-  <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.2" defer></script>
-
-  <style>
-    /* ========= ライトテーマ（白基調） ========= */
-    :root{
-      --bg:#f8fafc;              /* 全体背景 */
-      --surface:#ffffff;         /* サーフェス/カード */
-      --panel:#f1f5f9;           /* 左パネル */
-      --fg:#0f172a;              /* 本文色 */
-      --fg-muted:#475569;        /* 補助テキスト */
-      --border:#e2e8f0;          /* 枠線 */
-      --accent:#2563eb;          /* 主ボタン(青) */
-      --accent-2:#3b82f6;        /* 主ボタン(青2) */
-      --ok:#16a34a;              /* 成功系 */
-      --danger:#dc2626;          /* エラー系 */
-      --tile-text:#0b1227;       /* 2048タイル文字色 */
-    }
-    html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--fg);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
-      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    }
-    .container{min-height:100dvh; display:grid; place-items:center; padding:24px;}
-    .card{
-      width:min(1100px, 96vw);
-      background:var(--surface);
-      border:1px solid var(--border);
-      border-radius:16px; padding:28px;
-      box-shadow:0 10px 30px rgba(2,6,23,.06);
-    }
-    .headline{font-size:28px; font-weight:800; letter-spacing:.2px; margin:0 0 10px}
-    .muted{color:var(--fg-muted)}
-    .actions{display:flex; gap:12px; justify-content:center; margin-top:22px}
-    .btn{
-      appearance:none; border:0; cursor:pointer; border-radius:12px; padding:12px 18px; font-weight:700;
-      transition:transform .06s ease, box-shadow .2s ease, background .2s ease, color .2s ease, filter .2s ease;
-      box-shadow:0 6px 16px rgba(2,6,23,.08), inset 0 1px 0 rgba(255,255,255,.6);
-    }
-    .btn:active{transform:translateY(1px)}
-    .btn-primary{background:linear-gradient(180deg, var(--accent-2), var(--accent)); color:#fff;}
-    .btn-primary:hover{filter:brightness(1.03)}
-    .btn-ghost{background:#fff; color:var(--fg); border:1px solid var(--border);}
-    .btn-ghost:hover{background:#f8fafc}
-
-    /* ======= 読書ページ：左右分割（右エリア拡大） ======= */
-    .split{
-      display:grid; grid-template-columns: 360px 1fr; gap:20px;
-      width:min(1280px, 96vw);
-    }
-    .panel{
-      background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px;
-      box-shadow:0 8px 24px rgba(2,6,23,.05), inset 0 1px 0 rgba(255,255,255,.6);
-    }
-    .panel h2{margin:0 0 8px; font-size:20px}
-    .panel .hint{color:var(--fg-muted); font-size:14px}
-    .timer{
-      margin-top:12px; background:#ffffff; border:1px solid var(--border);
-      border-radius:10px; padding:10px 14px; font-variant-numeric: tabular-nums; display:inline-block;
-      box-shadow:0 4px 12px rgba(2,6,23,.06);
-    }
-    .docwrap{
-      background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px;
-      height:78vh;  /* 大きめ */
-      display:flex; flex-direction:column; gap:10px;
-      box-shadow:0 8px 24px rgba(2,6,23,.05);
-    }
-    .docwrap header{display:flex; justify-content:space-between; align-items:center}
-    .docframe{
-      flex:1; border:0; width:100%; border-radius:10px; background:#fff;
-      box-shadow:inset 0 0 0 1px var(--border);
-    }
-    .badge{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--fg-muted)}
-    .kbd{
-      border:1px solid var(--border); background:#fff; padding:2px 6px; border-radius:6px;
-      font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-
-    /* ======= 2048 ======= */
-    .board-wrap{margin-top:14px}
-    .board{
-      display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
-      background:#f1f5f9; border:1px solid var(--border); border-radius:12px; padding:12px;
-      touch-action: none; user-select:none; -webkit-user-select:none;
-    }
-    .tile{
-      /* 正方形タイル */
-      aspect-ratio: 1 / 1;
-      display:flex; align-items:center; justify-content:center;
-      border-radius:10px; font:800 24px/1.2 "Noto Sans JP", system-ui;
-      color:var(--tile-text);
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 6px 18px rgba(2,6,23,.06);
-      background:#e5e7eb;
-      transition: background-color .16s ease, transform .12s ease, box-shadow .16s ease;
-    }
-
-    /* ====== 起動/通知 ====== */
-    #boot-status{
-      position:fixed; inset:12px auto auto 12px; background:#ffffff;
-      border:1px solid var(--border); color:#596579;
-      padding:8px 10px; font:12px/1.4 monospace; border-radius:8px; z-index:99998;
-      box-shadow:0 6px 16px rgba(2,6,23,.08);
-    }
-    .errbar{
-      position:fixed; left:0; right:0; bottom:0; background:#fee2e2; border-top:1px solid #fecaca; color:#991b1b;
-      padding:10px 12px; font:12px/1.4 monospace; z-index:99999; white-space:pre-wrap;
-    }
-    .okbar{
-      position:fixed; left:50%; transform:translateX(-50%); bottom:14px; background:#ecfdf5;
-      border:1px solid #a7f3d0; color:#065f46; padding:8px 12px; font:12px/1.4 monospace; border-radius:8px; z-index:99999;
-      box-shadow:0 6px 16px rgba(2,6,23,.08);
-    }
-    /* 2048 サイズ調整 */
-    .board-wrap {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-    }
-    
-    .board {
-      width: min(360px, 90vw);  /* スマホ・PC両対応 */
-      max-width: 90vw;
-    }
-    
-    /* 小さい画面向けのタイル文字サイズ */
-    @media (max-width: 480px) {
-      .tile {
-        font-size: 16px;
-      }
-    }
-
-
-    /* ====== スマホ最適化 ====== */
-    @media (max-width: 640px){
-      .split{ grid-template-columns: 1fr; gap:12px; }
-      .panel{ padding:12px; }
-      .docwrap{ height: 78svh; }
-      .actions{ flex-wrap: wrap; }
-      .btn{ width: 100%; }
-    }
-  </style>
-
-  <script>
-    /* ========= 設定：GAS Webアプリ（スプレッドシート保存先） ========= */
-    const SUBMIT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxyjf5wWZChnsx5N2-tVi31XG1BR4TRCyZUBbnDwOJJnjVy5KeJ5lY-slww4kV9aqqY/exec";
-    /* =================================================================== */
-
-    (function(){
-      const t=document.createElement('div');
-      t.id='boot-status'; t.textContent='[boot] Loading...';
-      document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(t));
-    })();
-    function showErr(msg){
-      const d=document.createElement('div'); d.className='errbar';
-      d.textContent='Error: '+msg; document.body.appendChild(d);
-      console.error('[overlay]',msg);
-    }
-    function toastOK(msg){
-      const d=document.createElement('div'); d.className='okbar';
-      d.textContent=msg; document.body.appendChild(d);
-      setTimeout(()=>d.remove(),2600);
-    }
-    window.addEventListener('error',e=>{
-      if(e.target&&(e.target.tagName==='SCRIPT'||e.target.tagName==='LINK')){
-        showErr('Resource load failed: '+(e.target.src||e.target.href));
-      }else if(e.message){ showErr(e.message); }
-    },true);
-    window.addEventListener('unhandledrejection',e=>{
-      showErr('Unhandled rejection: '+(e.reason&&e.reason.message||e.reason));
-    });
-    let bootWatch=setTimeout(()=>{ showErr('Boot timeout: ライブラリ読み込みを確認してください。'); },5000);
-
-    // 読書中はEnter無効化フラグ
-    window.__blockEnter__ = false;
-
-    // Enterキーの統一挙動（読書ページは無効、アンケート入力欄は安全、その他は次へ）
-    document.addEventListener('keydown', (e)=>{
-      if(e.key!=='Enter') return;
-      if(window.__blockEnter__){ e.preventDefault(); return; } // 読書中は全ブロック
-
-      const t = e.target;
-      const tag = (t?.tagName||'').toLowerCase();
-      const type = (t?.type||'').toLowerCase();
-      const isTyping = tag==='textarea' || (tag==='input' && !['checkbox','radio','button','submit'].includes(type)) || t?.isContentEditable;
-
-      const insideSurvey = !!(t && t.closest && t.closest('.jspsych-survey-text'));
-      if(insideSurvey){
-        // textarea は改行を許可、それ以外は「次へ」
-        if(tag==='textarea'){ return; }
-        e.preventDefault();
-        const btn=document.querySelector('.jspsych-btn');
-        if(btn){ btn.click(); }
-        return;
-      }
-
-      if(isTyping) return;
-      const btn=document.querySelector('.jspsych-btn');
-      if(btn){ e.preventDefault(); btn.click(); }
-    }, true);
-
-    // スワイプ→方向キー化（スマホ用）
-    function attachSwipeToBoard(boardRoot, onDir){
-      let x0=0, y0=0, lock=false;
-      const TH=40; // しきい値(px)
-      boardRoot.addEventListener('touchstart', e=>{
-        if(!e.touches.length) return;
-        const t=e.touches[0]; x0=t.clientX; y0=t.clientY; lock=false;
-      }, {passive:true});
-      boardRoot.addEventListener('touchmove', e=>{
-        if(lock || !e.touches.length) return;
-        const t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
-        if(Math.max(Math.abs(dx), Math.abs(dy))<TH) return;
-        lock=true; e.preventDefault();
-        if(Math.abs(dx)>Math.abs(dy)) onDir(dx>0?'R':'L');
-        else                         onDir(dy>0?'D':'U');
-      }, {passive:false});
-    }
-
-    const GDOC_IFRAMES=[
-      "https://docs.google.com/document/d/16PcG459Gez69Wuk9n7HKFDRUnDSMIq0wM9JdU_vveVM/edit?usp=sharing", // a
-      "https://docs.google.com/document/d/1-d_yNvnLFwAW1aBIzggB7rFq1ETDtucUt74Gumawu3A/edit?usp=sharing", // b
-      "https://docs.google.com/document/d/1YuVn0ES_T0E-YIg3IDq7Uvzx90vBf_H0m4-DLFNWfzs/edit?usp=sharing", // c
-      "https://docs.google.com/document/d/1mbgmeo2_-Tsk6GsHZa4NmT7Tz7-TNkE45GHpIw8x4ww/edit?usp=sharing"  // d
-    ];
-    const TEXT_LABELS = ['a','b','c','d'];
-    function gdocSrc(raw){
-      try{ const u=new URL(raw);
-        if(!u.searchParams.get('embedded')) u.searchParams.set('embedded','true');
-        return u.toString();
-      }catch{return raw}
-    }
-    function startTimer(msTotal, mount){
-      const el=document.createElement('div'); el.className='timer';
-      (mount||document.body).appendChild(el);
-      const t0=performance.now();
-      const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000));const m=Math.floor(s/60);const r=s%60;return `${String(m).padStart(1,'0')}:${String(r).padStart(2,'0')}`};
-      el.textContent='残り '+fmt(msTotal);
-      const h=setInterval(()=>{
-        const dt=performance.now()-t0; const remain=msTotal-dt;
-        el.textContent='残り '+fmt(remain);
-        if(remain<=0){ clearInterval(h); el.textContent='残り 00:00'; setTimeout(()=>el.remove(),600) }
-      },250);
-      return()=>{ clearInterval(h); el.remove(); }
-    }
-  </script>
-</head>
-<body>
-  <noscript>このページはJavaScriptを使用します。ブラウザでJavaScriptを有効にしてください。</noscript>
-
-  <script>
-  window.addEventListener('load',()=>{try{
-    // プラグイン存在チェック
-    document.getElementById('boot-status').textContent='[boot] Loaded. Checking...';
-    if(typeof initJsPsych!=='function') throw new Error('initJsPsych 未読込');
-    if(typeof jsPsychHtmlKeyboardResponse==='undefined') throw new Error('plugin-html-keyboard-response 未読込');
-    if(typeof jsPsychSurveyText==='undefined') throw new Error('plugin-survey-text 未読込');
-
-    clearTimeout(bootWatch);
-    document.getElementById('boot-status').textContent='[boot] All good. Starting...';
-
-    /* ===== jsPsych 初期化（終了時はSheetsへ送信） ===== */
-    let global_meta = { text_index:null, text_label:null, g2048_score:null, g2048_moves:null };
-    const jsPsych=initJsPsych({
-      on_finish: async ()=>{
-        try{
+          // Google Apps Script に送信
           const payload = {
             timestamp: new Date().toISOString(),
-            userAgent: navigator.userAgent,
-            // どの本文(a~d)かを明示的に含める
-            text_index: global_meta.text_index,
-            text_label: global_meta.text_label,
-            g2048_score: global_meta.g2048_score,
-            g2048_moves: global_meta.g2048_moves,
-            csv: jsPsych.data.get().csv(),
-            json: jsPsych.data.get().json()
+            test_results: testResults
           };
+
           await fetch(SUBMIT_ENDPOINT, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
             mode: 'no-cors'
           });
-          toastOK('結果を送信しました。ご協力ありがとうございます！');
-        }catch(err){
-          showErr('結果の送信に失敗: '+err.message);
+
+          console.log('自由記述テスト結果:', testResults);
+          toastOK('自由記述テスト結果を送信しました！');
+        } catch (err) {
+          showErr('結果の送信に失敗: ' + err.message);
         }
       }
     });
 
-    /* ========== Page 1: 同意＆開始 ========== */
-    const page1={
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: `
-        <div class="container">
-          <div class="card">
-            <h1 class="headline">文字の特徴に関する調査へようこそ</h1>
-            <p class="muted">
-              本調査は、文字の見た目や表記の違いが記憶に及ぼす影響を検討します。<br>
-              調査は<strong>任意参加</strong>で、中止しても不利益はありません。<br>
-              <strong>ページ離脱/リロード</strong>では記録は保存されません。
-            </p>
-            <p class="muted">
-              所要時間は<strong>約12分</strong>です。準備ができたら「Enter」または「開始」を押してください。
-            </p>
-            <div class="actions">
-              <button class="btn btn-primary" id="start-btn" type="button">開始</button>
-            </div>
-          </div>
-        </div>`,
-      choices:['Enter'],
-      on_load:()=>{document.getElementById('start-btn')?.addEventListener('click',()=>jsPsych.finishTrial());},
-      data:{page:1}
-    };
-
-    /* ========== Page 2: 読解（左右分割＋タイマー／Enter無効） ========== */
-    const READ_MS=15000;
-    const idx=jsPsych.randomization.sampleWithoutReplacement([0,1,2,3],1)[0];
-    const label = TEXT_LABELS[idx];
-    global_meta.text_index = idx;
-    global_meta.text_label = label;
-    let cleanupTimer=null;
-
-    const page2={
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: () => `
-        <div class="split" aria-label="読書画面">
-          <aside class="panel" aria-label="指示とタイマー">
-            <h2>読解（2分）</h2>
-            <p class="hint">右の文章（ID: <strong>${label}</strong>）を読み、内容を頭に入れてください。時間になると自動で次へ進みます。</p>
-            <div id="timer-slot-read"></div>
-            <div style="margin-top:12px;">
-              <span class="badge"><span class="kbd">スマホ</span>：本文エリアを上下にスワイプでスクロール</span>
-            </div>
-          </aside>
-          <section class="docwrap" aria-label="本文">
-            <header>
-              <div class="muted">表示文章（${label}）</div>
-              <div class="badge"><span class="kbd">Enter</span> はこのページでは無効</div>
-            </header>
-            <iframe class="docframe" src="${gdocSrc(GDOC_IFRAMES[idx])}"
-              referrerpolicy="no-referrer-when-downgrade"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
-          </section>
-        </div>
-      `,
-      choices:'NO_KEYS',
-      trial_duration: READ_MS,
-      on_load:()=>{
-        window.__blockEnter__ = true; // 読書中はEnter無効
-        const slot=document.getElementById('timer-slot-read');
-        cleanupTimer=startTimer(READ_MS, slot);
-      },
-      on_finish:()=>{
-        window.__blockEnter__ = false; // 復帰
-        cleanupTimer&&cleanupTimer();
-      },
-      data:{page:2,text_index:idx,text_label:label}
-    };
-
-    /* ========== 忘却フェーズ：2048（8分） ========== */
-    const FORGET_MS = 0.5*60*1000;
-
-    // 回転ヘルパ（CW=時計回り, CCW=反時計回り）
-    const rotateCW = (b)=>{const n=4,nb=Array.from({length:n},()=>Array(n).fill(0));for(let r=0;r<n;r++)for(let c=0;c<n;c++)nb[c][n-1-r]=b[r][c];return nb;};
-    const rotateCCW = (b)=>rotateCW(rotateCW(rotateCW(b)));
-
+    /* ===== 2048ブロック作成（改良版） ===== */
     function make2048Block() {
       let board = Array.from({length:4},()=>Array(4).fill(0));
-      let score = 0, moves = 0, cleanup=null, ended=false, gameOver=false;
+      let score = 0, moves = 0, gameOver = false;
 
       function randEmpty(){const e=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(board[r][c]===0)e.push([r,c]);return e.length?e[Math.floor(Math.random()*e.length)]:null;}
       function spawn(n=1){for(let k=0;k<n;k++){const cell=randEmpty();if(!cell)return;const[r,c]=cell;board[r][c]=(Math.random()<0.9)?2:4;}}
@@ -400,48 +60,21 @@
       function tileBg(v){if(!v)return'#e5e7eb';const hue=40+Math.log2(v)*14;return `hsl(${hue},90%,75%)`; }
 
       function render(){
-        const sc=document.getElementById('g2048-score'); if(sc) sc.textContent=String(score);
-        const mv=document.getElementById('g2048-moves'); if(mv) mv.textContent=String(moves);
-
         let html = `<div class="board" id="g2048-grid">`;
-        for(let r=0;r<4;r++){
-          for(let c=0;c<4;c++){
-            const v=board[r][c];
-            html += `<div class="tile" style="background:${tileBg(v)}">${v||''}</div>`;
-          }
-        }
+        for(let r=0;r<4;r++){for(let c=0;c<4;c++){const v=board[r][c]; html += `<div class="tile" style="background:${tileBg(v)}">${v||''}</div>`;}}
         html += `</div>`;
-
         if(gameOver){
           html += `
             <div style="margin-top:12px; text-align:center;">
               <div class="muted" style="font-weight:700">ゲームオーバー！ スコア: ${score}</div>
               <div class="actions" style="margin-top:10px;">
-                <button class="btn btn-primary" id="g2048-restart" type="button">もう一度プレイする</button>
+                <button class="btn btn-primary" id="g2048-next" type="button">次へ</button>
               </div>
             </div>
           `;
         }
-
         const root=document.getElementById('g2048-board');
         if(root) root.innerHTML = html;
-
-        // スワイプを盤面にバインド（再描画時に再付与）
-        const grid = document.getElementById('g2048-grid');
-        if(grid){
-          attachSwipeToBoard(grid, (dir)=>{
-            const map = {L:'ArrowLeft', R:'ArrowRight', U:'ArrowUp', D:'ArrowDown'};
-            const ev = new KeyboardEvent('keydown', {key: map[dir]});
-            document.dispatchEvent(ev);
-          });
-        }
-      }
-
-      function endByTime(){
-        if(ended) return; ended=true; cleanup&&cleanup();
-        document.removeEventListener('keydown',handler,true);
-        global_meta.g2048_score = score; global_meta.g2048_moves = moves;
-        jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,duration_ms:FORGET_MS, reason:'timeout', text_label: global_meta.text_label});
       }
 
       function handler(e){
@@ -449,111 +82,60 @@
         if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','a','d','w','s','h','l','k','j'].includes(k)) return;
         e.preventDefault();
         const dir=(k==='ArrowLeft'||k==='a'||k==='h')?'L':(k==='ArrowRight'||k==='d'||k==='l')?'R':(k==='ArrowUp'||k==='w'||k==='k')?'U':'D';
-        const{nb,gain,moved}=move(dir); if(!moved) return;
+        const {nb,gain,moved}=move(dir); if(!moved) return;
         board=nb; score+=gain; moves++; spawn(1); render();
-        if(!anyMoves(board)){
-          gameOver = true;
-          document.removeEventListener('keydown',handler,true);
-          render();
-        }
+        if(!anyMoves(board)){ gameOver=true; render(); }
       }
 
       function restart(){
         board = Array.from({length:4},()=>Array(4).fill(0));
         score = 0; moves = 0; gameOver = false;
         spawn(2); render();
-        document.addEventListener('keydown',handler,true);
+        document.addEventListener('keydown', handler, true);
       }
 
-      return{
-        type:jsPsychHtmlKeyboardResponse,
-        stimulus:`
+      return {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
           <div class="container">
             <div class="card">
               <h2 class="headline">2048（8分）</h2>
-              <p class="muted">矢印キー（または WASD / HJKL／スワイプ）で操作。時間内にスコアを伸ばしてみてください。</p>
-
+              <p class="muted">矢印キー（または WASD / HJKL／スワイプ）で操作。</p>
               <div style="display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;">
-                <div style="display:flex;gap:16px;align-items:baseline;">
-                  <div class="muted">スコア: <span id="g2048-score">0</span></div>
-                  <div class="muted">手数: <span id="g2048-moves">0</span></div>
-                  <div class="muted">8分経過で自動で次へ進みます</div>
-                </div>
-                <div id="timer-slot-2048"></div>
+                <div class="muted">スコア: <span id="g2048-score">0</span> 手数: <span id="g2048-moves">0</span></div>
               </div>
-
               <div id="g2048-board"></div>
             </div>
           </div>`,
-        choices:"NO_KEYS",
-        on_load:()=>{
+        choices: "NO_KEYS",
+        on_load: () => {
           spawn(2); render();
-          document.addEventListener('keydown',handler,true);
-          const slot = document.getElementById('timer-slot-2048');
-          cleanup = startTimer(FORGET_MS, slot);
-          setTimeout(endByTime, FORGET_MS);
+          document.addEventListener('keydown', handler, true);
 
-          // オーバーレイボタン（イベント委譲）
-          document.addEventListener('click', (ev)=>{
-            const t = ev.target;
-            if(!(t instanceof HTMLElement)) return;
-            if(t.id==='g2048-restart'){ ev.preventDefault(); restart(); }
-            if(t.id==='g2048-next'){
-              ev.preventDefault();
-              global_meta.g2048_score = score; global_meta.g2048_moves = moves;
-              jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,manual_exit:true, text_label: global_meta.text_label});
+          // ボタンで次へ
+          document.addEventListener('click', (ev) => {
+            if(ev.target?.id==='g2048-next'){
+              global_meta.g2048_score = score;
+              global_meta.g2048_moves = moves;
+              jsPsych.finishTrial({score, moves, text_label: global_meta.text_label});
             }
+            if(ev.target?.id==='g2048-restart'){ ev.preventDefault(); restart(); }
           }, true);
         },
-        on_finish:()=>{cleanup&&cleanup();document.removeEventListener('keydown',handler,true);}
+        on_finish: () => {
+          document.removeEventListener('keydown', handler, true);
+        }
       };
     }
+
     const forgetting_block = make2048Block();
 
-    /* ========== テスト導入（自由記述のみ） ========== */
-    const page3_intro={
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: `
-        <div class="container">
-          <div class="card">
-            <h2 class="headline">テスト（自由記述）</h2>
-            <p class="muted">以下はすべて自由記述の一問一答形式です。思い出せる範囲でお答えください。</p>
-            <div class="actions" style="margin-top:24px;">
-              <button class="btn btn-primary" id="go-q" type="button">開始する</button>
-            </div>
-          </div>
-        </div>
-      `,
-      choices:['Enter'],
-      on_load:()=>{ document.getElementById('go-q')?.addEventListener('click',()=>jsPsych.finishTrial()); },
-      data:{page:3,part:'intro', text_label: label}
-    };
+    /* ===== 実行 ===== */
+    jsPsych.run([page1, page2, forgetting_block, page3_intro, ...textBlocks]);
 
-    /* ========== 質問（自由記述のみ・選択肢なし・1種類） ========== */
-    // 好みで出題数/文言を調整してください
-    const OPEN_ITEMS = [
-      '舞台となった半島の名前を答えてください。',
-      '「フロリナ石塔」の高さは平均何メートルとの記述がありましたか？',
-      '「フロリナ石塔」が建造された時期を具体的に答えてください。',
-      '「グレイン段丘」は過去の文書の中ではどのような表現で言い換えられていましたか？',
-      '「デルタライン道」はどのような素材でつくられていましたか？',
-      '「デルタライン道」がその素材で作られた背景にはなにがありましたか？'
-    ];
-
-    const textBlocks = OPEN_ITEMS.map((prompt, i)=>({
-      type: jsPsychSurveyText,
-      preamble: `<div class="card"><h2 class="headline">問題 ${i+1}</h2><p class="muted">自由記述で回答してください。</p></div>`,
-      questions: [{ prompt, name: `q${i+1}`, required: false, rows: 2, columns: 60, placeholder: 'ここに回答を入力' }],
-      button_label: '次へ',
-      data: { page: 4, kind: 'open', index: i+1, text_label: label }
-    }));
-
-    /* ========== 実行シーケンス ========== */
-    jsPsych.run([page1,page2,forgetting_block,page3_intro,...textBlocks]);
-
-  }catch(err){
-    clearTimeout(bootWatch); showErr('Setup Error: '+err.message); console.error(err);
-  }});
-  </script>
-</body>
-</html>
+  } catch (err) {
+    showErr('Setup Error: ' + err.message);
+    console.error(err);
+  }
+});
+</script>
