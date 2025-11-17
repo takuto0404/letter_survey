@@ -123,6 +123,25 @@
       border:1px solid #a7f3d0; color:#065f46; padding:8px 12px; font:12px/1.4 monospace; border-radius:8px; z-index:99999;
       box-shadow:0 6px 16px rgba(2,6,23,.08);
     }
+    /* 2048 サイズ調整 */
+    .board-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    
+    .board {
+      width: min(360px, 90vw);  /* スマホ・PC両対応 */
+      max-width: 90vw;
+    }
+    
+    /* 小さい画面向けのタイル文字サイズ */
+    @media (max-width: 480px) {
+      .tile {
+        font-size: 16px;
+      }
+    }
+
 
     /* ====== スマホ最適化 ====== */
     @media (max-width: 640px){
