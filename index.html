@@ -188,6 +188,11 @@
       showErr('Unhandled rejection: '+(e.reason&&e.reason.message||e.reason));
     });
     let bootWatch=setTimeout(()=>{ showErr('Boot timeout: ライブラリ読み込みを確認してください。'); },5000);
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof initJsPsych === 'undefined' || typeof jsPsychHtmlKeyboardResponse === 'undefined') {
+        showErr('ライブラリが読み込まれていません。ネットワークと CDN への接続を確認してください。');
+      }
+    });
 
     // 読書中はEnter無効化フラグ
     window.__blockEnter__ = false;
