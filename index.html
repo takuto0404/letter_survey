@@ -286,6 +286,22 @@
     const jsPsych=initJsPsych({
       on_finish: async ()=>{
         try{
+          // 自由記述（page:4）のみを送信し、刺激HTMLなどの大容量データは含めない
+          const freeTextTrials = jsPsych.data.get().filter({ page: 4 }).values();
+          const responses = freeTextTrials.map(trial => {
+            let answers = {};
+            try{
+              answers = JSON.parse(trial.responses || '{}');
+            }catch{}
+            const question_id = Object.keys(answers)[0] || null;
+            return {
+              question_id,
+              value: question_id ? answers[question_id] : '',
+              rt: trial.rt ?? null,
+              index: trial.index ?? null
+            };
+          });
+
           const payload = {
             timestamp: new Date().toISOString(),
             userAgent: navigator.userAgent,
@@ -293,9 +309,9 @@
             text_label: global_meta.text_label,
             g2048_score: global_meta.g2048_score,
             g2048_moves: global_meta.g2048_moves,
-            csv: jsPsych.data.get().csv(),
-            json: jsPsych.data.get().json()
+            responses
           };
+
           await fetch(SUBMIT_ENDPOINT, {
             method:'POST',
             headers:{'Content-Type':'application/json'},
