@@ -198,7 +198,7 @@
     window.__blockEnter__ = false;
 
     // Enterキーの統一挙動（読書ページは無効、アンケート入力欄は安全、その他は次へ）
-    document.addEventListener('keydown', (e)=>{
+    const handleEnterKey = (e)=>{
       if(e.key!=='Enter') return;
       if(window.__blockEnter__){ e.preventDefault(); return; } // 読書中は全ブロック
 
@@ -220,7 +220,9 @@
       if(isTyping) return;
       const btn=document.querySelector('.jspsych-btn');
       if(btn){ e.preventDefault(); btn.click(); }
-    }, true);
+    };
+    document.addEventListener('keydown', handleEnterKey, true);
+    window.addEventListener('keydown', handleEnterKey, true);
 
     // スワイプ→方向キー化（スマホ用）
     function attachSwipeToBoard(boardRoot, onDir){
@@ -282,7 +284,7 @@
     if(bootStatus){ bootStatus.textContent='[boot] Ready'; setTimeout(()=>bootStatus.remove(),800); }
 
     /* ===== jsPsych 初期化（終了時はSheetsへ送信） ===== */
-    let global_meta = { text_index:null, text_label:null, g2048_score:null, g2048_moves:null };
+    let global_meta = { text_index:null, text_label:null, g2048_score:null, g2048_moves:null, g2048_best:null };
     const jsPsych=initJsPsych({
       on_finish: async ()=>{
         try{
@@ -290,21 +292,33 @@
           const freeTextTrials = jsPsych.data.get().filter({ page: 4 }).values();
           const responses = freeTextTrials.map(trial => {
             let answers = {};
-            try{
-              answers = JSON.parse(trial.responses || '{}');
-            }catch{}
-            const question_id = Object.keys(answers)[0] || null;
+            if(typeof trial.response === 'string'){
+              try{ answers = JSON.parse(trial.response || '{}'); }catch{}
+            }else if(trial.response){
+              answers = trial.response;
+            }else if(typeof trial.responses === 'string'){
+              try{ answers = JSON.parse(trial.responses || '{}'); }catch{}
+            }else if(trial.responses){
+              answers = trial.responses;
+            }
+
+            const answerKeys = Object.keys(answers);
+            const fallbackId = (trial.questions && trial.questions[0] && trial.questions[0].name) ? trial.questions[0].name : null;
+            const question_id = answerKeys[0] || fallbackId;
+            const value = question_id ? (answers[question_id] ?? '') : '';
+
             return {
               question_id,
-              value: question_id ? answers[question_id] : '',
+              value,
               rt: trial.rt ?? null,
-              index: trial.index ?? null
+              index: trial.index ?? trial.data?.index ?? null,
+              text_label: trial.text_label ?? trial.data?.text_label ?? global_meta.text_label ?? null
             };
           });
 
           const minimalJson = JSON.stringify(responses);
           const csvHeader = ['question_id','value','rt','index','text_label'];
-          const csvRows = responses.map(r => [r.question_id ?? '', r.value ?? '', r.rt ?? '', r.index ?? '', global_meta.text_label ?? '']);
+          const csvRows = responses.map(r => [r.question_id ?? '', r.value ?? '', r.rt ?? '', r.index ?? '', r.text_label ?? global_meta.text_label ?? '']);
           const csv = [csvHeader, ...csvRows]
             .map(row => row
               .map(v => String(v).replace(/"/g,'""'))
@@ -319,6 +333,7 @@
             text_label: global_meta.text_label,
             g2048_score: global_meta.g2048_score,
             g2048_moves: global_meta.g2048_moves,
+            g2048_best: global_meta.g2048_best,
             responses,
             csv,
             json: minimalJson
@@ -390,16 +405,19 @@
             </header>
             <iframe class="docframe" src="${gdocSrc(GDOC_IFRAMES[idx])}"
               referrerpolicy="no-referrer-when-downgrade"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+              tabindex="-1"></iframe>
           </section>
         </div>
       `,
       choices:'NO_KEYS',
+      response_ends_trial:false,
       trial_duration: READ_MS,
       on_load:()=>{
         window.__blockEnter__ = true;
         const slot=document.getElementById('timer-slot-read');
         cleanupTimer=startTimer(READ_MS, slot);
+        jsPsych.pluginAPI.cancelAllKeyboardResponses();
       },
       on_finish:()=>{
         window.__blockEnter__ = false;
@@ -416,7 +434,7 @@
 
     function make2048Block() {
       let board = Array.from({length:4},()=>Array(4).fill(0));
-      let score = 0, moves = 0, cleanup=null, ended=false, gameOver=false;
+      let score = 0, bestScore = 0, moves = 0, cleanup=null, ended=false, gameOver=false, clickHandler=null;
 
       function randEmpty(){const e=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(board[r][c]===0)e.push([r,c]);return e.length?e[Math.floor(Math.random()*e.length)]:null;}
       function spawn(n=1){for(let k=0;k<n;k++){const cell=randEmpty();if(!cell)return;const[r,c]=cell;board[r][c]=(Math.random()<0.9)?2:4;}}
@@ -438,6 +456,7 @@
 
       function render(){
         const sc=document.getElementById('g2048-score'); if(sc) sc.textContent=String(score);
+        const bs=document.getElementById('g2048-best'); if(bs) bs.textContent=String(bestScore);
         const mv=document.getElementById('g2048-moves'); if(mv) mv.textContent=String(moves);
 
         let html = `<div class="board" id="g2048-grid">`;
@@ -452,7 +471,7 @@
         if(gameOver){
           html += `
             <div style="margin-top:12px; text-align:center;">
-              <div class="muted" style="font-weight:700">ゲームオーバー！ スコア: ${score}</div>
+              <div class="muted" style="font-weight:700">ゲームオーバー！ スコア: ${score}（最高 ${bestScore}）</div>
               <div class="actions" style="margin-top:10px;">
                 <button class="btn btn-primary" id="g2048-restart" type="button">もう一度</button>
               </div>
@@ -476,8 +495,8 @@
       function endByTime(){
         if(ended) return; ended=true; cleanup&&cleanup();
         document.removeEventListener('keydown',handler,true);
-        global_meta.g2048_score = score; global_meta.g2048_moves = moves;
-        jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,duration_ms:FORGET_MS, reason:'timeout', text_label: global_meta.text_label});
+        global_meta.g2048_score = score; global_meta.g2048_moves = moves; global_meta.g2048_best = bestScore;
+        jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,bestScore,duration_ms:FORGET_MS, reason:'timeout', text_label: global_meta.text_label});
       }
 
       function handler(e){
@@ -486,7 +505,7 @@
         e.preventDefault();
         const dir=(k==='ArrowLeft'||k==='a'||k==='h')?'L':(k==='ArrowRight'||k==='d'||k==='l')?'R':(k==='ArrowUp'||k==='w'||k==='k')?'U':'D';
         const{nb,gain,moved}=move(dir); if(!moved) return;
-        board=nb; score+=gain; moves++; spawn(1); render();
+        board=nb; score+=gain; bestScore = Math.max(bestScore, score); moves++; spawn(1); render();
         if(!anyMoves(board)){
           gameOver = true;
           document.removeEventListener('keydown',handler,true);
@@ -512,6 +531,7 @@
               <div style="display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;">
                 <div style="display:flex;gap:16px;align-items:baseline;">
                   <div class="muted">スコア: <span id="g2048-score">0</span></div>
+                  <div class="muted">最高: <span id="g2048-best">0</span></div>
                   <div class="muted">手数: <span id="g2048-moves">0</span></div>
                   <div class="muted">8分経過で自動で次へ進みます</div>
                 </div>
@@ -529,13 +549,21 @@
           cleanup = startTimer(FORGET_MS, slot);
           setTimeout(endByTime, FORGET_MS);
 
-          document.addEventListener('click', (ev)=>{
+          clickHandler = (ev)=>{
             const t = ev.target;
             if(!(t instanceof HTMLElement)) return;
             if(t.id==='g2048-restart'){ ev.preventDefault(); restart(); }
-          }, true);
+          };
+          document.addEventListener('click', clickHandler, true);
         },
-        on_finish:()=>{cleanup&&cleanup();document.removeEventListener('keydown',handler,true);}
+        on_finish:()=>{
+          global_meta.g2048_score = score;
+          global_meta.g2048_moves = moves;
+          global_meta.g2048_best = Math.max(bestScore, global_meta.g2048_best ?? 0);
+          cleanup&&cleanup();
+          document.removeEventListener('keydown',handler,true);
+          if(clickHandler) document.removeEventListener('click', clickHandler, true);
+        }
       };
     }
     const forgetting_block = make2048Block();
