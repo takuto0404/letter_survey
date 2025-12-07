@@ -302,6 +302,16 @@
             };
           });
 
+          const minimalJson = JSON.stringify(responses);
+          const csvHeader = ['question_id','value','rt','index','text_label'];
+          const csvRows = responses.map(r => [r.question_id ?? '', r.value ?? '', r.rt ?? '', r.index ?? '', global_meta.text_label ?? '']);
+          const csv = [csvHeader, ...csvRows]
+            .map(row => row
+              .map(v => String(v).replace(/"/g,'""'))
+              .map(v => /,|"/.test(v) ? `"${v}"` : v)
+              .join(','))
+            .join('\n');
+
           const payload = {
             timestamp: new Date().toISOString(),
             userAgent: navigator.userAgent,
@@ -309,7 +319,9 @@
             text_label: global_meta.text_label,
             g2048_score: global_meta.g2048_score,
             g2048_moves: global_meta.g2048_moves,
-            responses
+            responses,
+            csv,
+            json: minimalJson
           };
 
           await fetch(SUBMIT_ENDPOINT, {
@@ -442,8 +454,7 @@
             <div style="margin-top:12px; text-align:center;">
               <div class="muted" style="font-weight:700">ゲームオーバー！ スコア: ${score}</div>
               <div class="actions" style="margin-top:10px;">
-                <button class="btn btn-ghost" id="g2048-restart" type="button">もう一度</button>
-                <button class="btn btn-primary" id="g2048-next" type="button">次へ</button>
+                <button class="btn btn-primary" id="g2048-restart" type="button">もう一度</button>
               </div>
             </div>
           `;
@@ -522,11 +533,6 @@
             const t = ev.target;
             if(!(t instanceof HTMLElement)) return;
             if(t.id==='g2048-restart'){ ev.preventDefault(); restart(); }
-            if(t.id==='g2048-next'){
-              ev.preventDefault();
-              global_meta.g2048_score = score; global_meta.g2048_moves = moves;
-              jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,manual_exit:true, text_label: global_meta.text_label});
-            }
           }, true);
         },
         on_finish:()=>{cleanup&&cleanup();document.removeEventListener('keydown',handler,true);}
