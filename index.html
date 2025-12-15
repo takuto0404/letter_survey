@@ -316,27 +316,45 @@
             };
           });
 
-          const minimalJson = JSON.stringify(responses);
-          const csvHeader = ['question_id','value','rt','index','text_label'];
-          const csvRows = responses.map(r => [r.question_id ?? '', r.value ?? '', r.rt ?? '', r.index ?? '', r.text_label ?? global_meta.text_label ?? '']);
-          const csv = [csvHeader, ...csvRows]
+          const textId = global_meta.text_label;
+          const questions = {};
+          responses.forEach(r => {
+            if(!r || !r.question_id) return;
+            questions[r.question_id] = r.value ?? '';
+          });
+
+          const csvHeader = ['text_id','q1','q2','q3','q4','q5','q6'];
+          const csvRow = [
+            textId ?? '',
+            questions.q1 ?? '',
+            questions.q2 ?? '',
+            questions.q3 ?? '',
+            questions.q4 ?? '',
+            questions.q5 ?? '',
+            questions.q6 ?? ''
+          ];
+          const csv = [csvHeader, csvRow]
             .map(row => row
-              .map(v => String(v).replace(/"/g,'""'))
+              .map(v => String(v ?? '').replace(/"/g,'""'))
               .map(v => /,|"/.test(v) ? `"${v}"` : v)
               .join(','))
             .join('\n');
+
+          const minimalJson = JSON.stringify({ text_id: textId, questions });
 
           const payload = {
             timestamp: new Date().toISOString(),
             userAgent: navigator.userAgent,
             text_index: global_meta.text_index,
-            text_label: global_meta.text_label,
+            text_label: textId,
             g2048_score: global_meta.g2048_score,
             g2048_moves: global_meta.g2048_moves,
             g2048_best: global_meta.g2048_best,
             responses,
             csv,
-            json: minimalJson
+            json: minimalJson,
+            questions,
+            text_id: textId
           };
 
           await fetch(SUBMIT_ENDPOINT, {
@@ -418,16 +436,24 @@
         const slot=document.getElementById('timer-slot-read');
         cleanupTimer=startTimer(READ_MS, slot);
         jsPsych.pluginAPI.cancelAllKeyboardResponses();
+
+        // 画面全体で Enter を完全無効化
+        window.__readPageStopper__ = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); } };
+        window.addEventListener('keydown', window.__readPageStopper__, true);
       },
       on_finish:()=>{
         window.__blockEnter__ = false;
         cleanupTimer&&cleanupTimer();
+        if(window.__readPageStopper__){
+          window.removeEventListener('keydown', window.__readPageStopper__, true);
+          window.__readPageStopper__ = null;
+        }
       },
       data:{page:2,text_index:idx,text_label:label}
     };
 
     /* ========== 忘却フェーズ：2048（8分） ========== */
-    const FORGET_MS = 8*60*1000;
+    const FORGET_MS = 5*60*1000;
 
     const rotateCW = (b)=>{const n=4,nb=Array.from({length:n},()=>Array(n).fill(0));for(let r=0;r<n;r++)for(let c=0;c<n;c++)nb[c][n-1-r]=b[r][c];return nb;};
     const rotateCCW = (b)=>rotateCW(rotateCW(rotateCW(b)));
@@ -435,6 +461,7 @@
     function make2048Block() {
       let board = Array.from({length:4},()=>Array(4).fill(0));
       let score = 0, bestScore = 0, moves = 0, cleanup=null, ended=false, gameOver=false, clickHandler=null;
+      let timeoutId = null;
 
       function randEmpty(){const e=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(board[r][c]===0)e.push([r,c]);return e.length?e[Math.floor(Math.random()*e.length)]:null;}
       function spawn(n=1){for(let k=0;k<n;k++){const cell=randEmpty();if(!cell)return;const[r,c]=cell;board[r][c]=(Math.random()<0.9)?2:4;}}
@@ -492,8 +519,10 @@
         }
       }
 
+      function clearTimeoutIfAny(){ if(timeoutId!==null){ clearTimeout(timeoutId); timeoutId=null; } }
+
       function endByTime(){
-        if(ended) return; ended=true; cleanup&&cleanup();
+        if(ended) return; ended=true; cleanup&&cleanup(); clearTimeoutIfAny();
         document.removeEventListener('keydown',handler,true);
         global_meta.g2048_score = score; global_meta.g2048_moves = moves; global_meta.g2048_best = bestScore;
         jsPsych.finishTrial({phase:'forgetting',game:'2048',score,moves,bestScore,duration_ms:FORGET_MS, reason:'timeout', text_label: global_meta.text_label});
@@ -547,7 +576,7 @@
           document.addEventListener('keydown',handler,true);
           const slot = document.getElementById('timer-slot-2048');
           cleanup = startTimer(FORGET_MS, slot);
-          setTimeout(endByTime, FORGET_MS);
+          timeoutId = setTimeout(endByTime, FORGET_MS);
 
           clickHandler = (ev)=>{
             const t = ev.target;
@@ -561,6 +590,7 @@
           global_meta.g2048_moves = moves;
           global_meta.g2048_best = Math.max(bestScore, global_meta.g2048_best ?? 0);
           cleanup&&cleanup();
+          clearTimeoutIfAny();
           document.removeEventListener('keydown',handler,true);
           if(clickHandler) document.removeEventListener('click', clickHandler, true);
         }
