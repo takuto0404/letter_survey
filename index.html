@@ -161,7 +161,58 @@
   <script>
     /* ========= 設定：GAS Webアプリ（スプレッドシート保存先） ========= */
     const APP_VERSION = "v2024-09-04-1";
-    const SUBMIT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxyjf5wWZChnsx5N2-tVi31XG1BR4TRCyZUBbnDwOJJnjVy5KeJ5lY-slww4kV9aqqY/exec";
+    const SUBMIT_ENDPOINT = "function doPost(e){
+  try{
+    var ss = SpreadsheetApp.openById('1xdwVMO_M7LkngOLNVSQ2QAz36h3BBzmpiZ9YwVObgXY');
+    var sheet = ss.getSheetByName('responses') || ss.insertSheet('responses');
+
+    var body = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
+    var data = JSON.parse(body);
+
+    // data.json が「文字列JSON」として入っている場合も拾う
+    var inner = null;
+    if (typeof data.json === 'string' && data.json.trim().startsWith('{')) {
+      try { inner = JSON.parse(data.json); } catch(_) {}
+    }
+
+    // どちらの形式でも最終的にここから取れるようにする
+    var textId = (data.text_id ?? data.textId ?? data.text_label)
+              ?? (inner && (inner.text_id ?? inner.textId))
+              ?? (data.questions && data.questions.text_id)
+              ?? '';
+
+    var questions = data.questions
+               ?? (inner && inner.questions)
+               ?? {};
+
+    // 初回ヘッダ
+    if(sheet.getLastRow() === 0){
+      sheet.appendRow(['timestamp','text_id','q1','q2','q3','q4','q5','q6','userAgent']);
+    }
+
+    sheet.appendRow([
+      data.timestamp || new Date().toISOString(),
+      textId,
+      questions.q1 || '',
+      questions.q2 || '',
+      questions.q3 || '',
+      questions.q4 || '',
+      questions.q5 || '',
+      questions.q6 || '',
+      data.userAgent || ''
+    ]);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ok:true}))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  }catch(err){
+    return ContentService
+      .createTextOutput(JSON.stringify({ok:false, error: String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+";
     /* =================================================================== */
 
     (function(){
