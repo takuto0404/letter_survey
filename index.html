@@ -305,27 +305,45 @@
             };
           });
 
-          const minimalJson = JSON.stringify(responses);
-          const csvHeader = ['question_id','value','rt','index','text_label'];
-          const csvRows = responses.map(r => [r.question_id ?? '', r.value ?? '', r.rt ?? '', r.index ?? '', r.text_label ?? global_meta.text_label ?? '']);
-          const csv = [csvHeader, ...csvRows]
+          const textId = global_meta.text_label;
+          const questions = {};
+          responses.forEach(r => {
+            if(!r || !r.question_id) return;
+            questions[r.question_id] = r.value ?? '';
+          });
+
+          const csvHeader = ['text_id','q1','q2','q3','q4','q5','q6'];
+          const csvRow = [
+            textId ?? '',
+            questions.q1 ?? '',
+            questions.q2 ?? '',
+            questions.q3 ?? '',
+            questions.q4 ?? '',
+            questions.q5 ?? '',
+            questions.q6 ?? ''
+          ];
+          const csv = [csvHeader, csvRow]
             .map(row => row
-              .map(v => String(v).replace(/"/g,'""'))
+              .map(v => String(v ?? '').replace(/"/g,'""'))
               .map(v => /,|"/.test(v) ? `"${v}"` : v)
               .join(','))
             .join('\n');
+
+          const minimalJson = JSON.stringify({ text_id: textId, questions });
 
           const payload = {
             timestamp: new Date().toISOString(),
             userAgent: navigator.userAgent,
             text_index: global_meta.text_index,
-            text_label: global_meta.text_label,
+            text_label: textId,
             g2048_score: global_meta.g2048_score,
             g2048_moves: global_meta.g2048_moves,
             g2048_best: global_meta.g2048_best,
             responses,
             csv,
-            json: minimalJson
+            json: minimalJson,
+            questions,
+            text_id: textId
           };
 
           await fetch(SUBMIT_ENDPOINT, {
